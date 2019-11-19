@@ -1,0 +1,6 @@
+.idea/
+.ipynb_checkpoints/
+data/glove*
+humor-refs/
+data/shortjokes*
+*.pyc
