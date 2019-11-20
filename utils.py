@@ -1,12 +1,15 @@
 import csv
+from typing import Dict, List
+
 import numpy as np
 import torch
 
 
-def create_vocabulary(path):
+def create_vocabulary(path: str) -> Dict[str, int]:
     """
     :param path: Path to training CSV file containing index and space-separated token list
-    :return: Dictionary that maps vocabulary words to indices
+    :return: Dictionary that maps vocabulary words to ids in the vocabulary. All words are converted to lowercase.
+             PAD and UNK are mapped to 0 and 1 respectively.
     """
     vocab = {'PAD': 0, 'UNK': 1}
     with open(path) as csv_file:
@@ -19,7 +22,7 @@ def create_vocabulary(path):
     return vocab
 
 
-def sentence2vec(vocabulary, token_list):
+def sentence2vec(vocabulary: Dict[str, int], token_list: List[str]) -> List[int]:
     """
     :param vocabulary: Dictionary that maps word to id
     :param token_list: List of token strings
@@ -34,7 +37,14 @@ def sentence2vec(vocabulary, token_list):
     return vec
 
 
-def load_unpadded_train_val_data(path, vocabulary, all_labels):
+def load_unpadded_train_val_data(path: str, vocabulary: Dict[str, int], all_labels: Dict[int, int]):
+    """
+    Load train or validation data into unpadded lists divided into those with labels and those without labels
+    :param path: Path to input file
+    :param vocabulary: Word to id map
+    :param all_labels: All existing labels. Maps id of sentence to label
+    :return: Labeled and unlabeled sentence ids and data, labels, and longest sentence length
+    """
     labeled_indices = []
     labeled_unpadded_data = []
     data_labels = []
