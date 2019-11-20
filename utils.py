@@ -13,9 +13,9 @@ def create_vocabulary(path):
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader:
             # row[0] is index of the sentence in the dataset
-            for token in row[1].split():
+            for token in row[1].lower().split():
                 if token not in vocab:
-                    vocab[token.lower()] = len(vocab)
+                    vocab[token] = len(vocab)
     return vocab
 
 
@@ -34,20 +34,29 @@ def sentence2vec(vocabulary, token_list):
     return vec
 
 
-def load_unpadded_train_val_data(path, vocabulary):
-    indices = []
-    unpadded_data = []
+def load_unpadded_train_val_data(path, vocabulary, labels):
+    labeled_indices = []
+    labeled_unpadded_data = []
+    unlabeled_indices = []
+    unlabeled_unpadded_data = []
     longest_sentence_length = 0
 
     with open(path) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader:
-            indices.append(int(row[0]))
-            sentence_split = row[1].split()
+            sentence_split = row[1].lower().split()
             if len(sentence_split) > longest_sentence_length:
                 longest_sentence_length = len(sentence_split)
-            unpadded_data.append(sentence2vec(vocabulary, sentence_split))
-    return indices, unpadded_data, longest_sentence_length
+            idx = int(row[0])
+            sentence_vec = sentence2vec(vocabulary, sentence_split)
+            if idx in labels:
+                labeled_indices.append(idx)
+                labeled_unpadded_data.append(sentence_vec)
+            else:
+                unlabeled_indices.append(idx)
+                unlabeled_unpadded_data.append(sentence_vec)
+    return labeled_indices, labeled_unpadded_data, unlabeled_indices, unlabeled_unpadded_data,\
+           longest_sentence_length
 
 
 def create_padded_data(unpadded_data, longest_length):

@@ -15,6 +15,18 @@ WINDOW_SIZES = [2, 3, 4, 5]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def train_one_epoch(epoch, model):
+    model.train()
+
+
+def rank_unlabeled_train(model, data):
+    """
+    Rank unlabeled training data using a model by uncertainty
+    :return:
+    """
+    pass
+
+
 @click.command()
 @click.option('--train-path', help='Path to training file', required=True)
 @click.option('--val-path', help='Path to validation file', required=True)
@@ -37,19 +49,22 @@ def train(train_path, val_path, labels_path, embedding_vectors_path, embedding_w
     vocab = create_vocabulary(train_path)
     vocab_size = len(vocab)
     print(f'Vocabulary size: {vocab_size}')
+    labels = load_existing_annotations(labels_path)
+
     # Stores indexes of sentences provided in the original dataset
-    train_idx, train_data_unpadded, longest_sentence_length = load_unpadded_train_val_data(train_path, vocab)
-    val_idx, val_data_unpadded, _ = load_unpadded_train_val_data(val_path, vocab)
+    train_labeled_idx, train_labeled_data_unpadded, train_unlabeled_idx, train_unlabeled_data_unpadded,\
+        longest_sentence_length = load_unpadded_train_val_data(train_path, vocab, labels)
+    val_labeled_idx, val_labeled_data_unpadded, val_unlabeled_idx, val_unlabeled_data_unpadded,\
+        _ = load_unpadded_train_val_data(val_path, vocab, labels)
 
     # Create padded train and val dataset
-    train_data = create_padded_data(train_data_unpadded, longest_sentence_length)
-    val_data = create_padded_data(val_data_unpadded, longest_sentence_length)
+    train_labeled_data = create_padded_data(train_labeled_data_unpadded, longest_sentence_length)
+    val_labeled_data = create_padded_data(val_labeled_data_unpadded, longest_sentence_length)
 
     humor_types = load_sentences_or_categories(categories_def_path)
     word_weight_matrix = create_weight_matrix(vocab, embeddings, device)
-    labels = load_existing_annotations(labels_path)
 
-    textCNN = TextCNN(word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types))
+    textCNN = TextCNN(word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types)).to(device)
 
 
 if __name__ == '__main__':
