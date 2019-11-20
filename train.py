@@ -10,9 +10,9 @@ from models.TextCNN import TextCNN
 from utils import create_vocabulary, load_unpadded_train_val_data, create_padded_data, create_weight_matrix, \
     create_batch_iterable
 
-NUM_FILTERS = 2
+NUM_FILTERS = 8
 WINDOW_SIZES = [2, 3, 4, 5]
-LR = 1e-4
+LR = 1e-2
 OPTIM_EPS = 1e-9
 NUM_EPOCHS = 1000
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -28,11 +28,11 @@ def train_one_epoch(model, data_batches, optimizer):
         optimizer.step()
 
 
-def evaluate(model, test_batches):
+def evaluate(epoch, model, data, labels):
     model.eval()
-    for _, (data, labels) in enumerate(test_batches):
-        pred = model(data)
-        print(torch.sum(torch.argmax(pred, dim=1) != labels) * 1.0 / len(labels))
+    pred = model(data)
+    error = torch.sum(torch.argmax(pred, dim=1) != labels) * 1.0 / labels.shape[0]
+    print(f'Epoch {epoch}: Error rate is {error}')
 
 
 def rank_unlabeled_train(model, data, indices):
@@ -86,7 +86,9 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
 
     for i in range(NUM_EPOCHS):
         train_one_epoch(textCNN, create_batch_iterable(train_labeled_data, train_labels, batch_size, device), optimizer)
-        evaluate(textCNN, create_batch_iterable(train_labeled_data, train_labels, len(val_labeled_data), device))
+        evaluate(i, textCNN,
+                 torch.tensor(train_labeled_data, dtype=torch.long, device=device),
+                 torch.tensor(train_labels, dtype=torch.long, device=device))
 
 
 if __name__ == '__main__':
