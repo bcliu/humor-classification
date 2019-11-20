@@ -34,9 +34,10 @@ def sentence2vec(vocabulary, token_list):
     return vec
 
 
-def load_unpadded_train_val_data(path, vocabulary, labels):
+def load_unpadded_train_val_data(path, vocabulary, all_labels):
     labeled_indices = []
     labeled_unpadded_data = []
+    data_labels = []
     unlabeled_indices = []
     unlabeled_unpadded_data = []
     longest_sentence_length = 0
@@ -49,13 +50,14 @@ def load_unpadded_train_val_data(path, vocabulary, labels):
                 longest_sentence_length = len(sentence_split)
             idx = int(row[0])
             sentence_vec = sentence2vec(vocabulary, sentence_split)
-            if idx in labels:
+            if idx in all_labels:
                 labeled_indices.append(idx)
                 labeled_unpadded_data.append(sentence_vec)
+                data_labels.append(all_labels[idx])
             else:
                 unlabeled_indices.append(idx)
                 unlabeled_unpadded_data.append(sentence_vec)
-    return labeled_indices, labeled_unpadded_data, unlabeled_indices, unlabeled_unpadded_data,\
+    return labeled_indices, labeled_unpadded_data, data_labels, unlabeled_indices, unlabeled_unpadded_data,\
            longest_sentence_length
 
 
@@ -76,3 +78,12 @@ def create_weight_matrix(vocabulary, embeddings, device):
         else:
             matrix[vocabulary[word]] = torch.rand(embedding_dim)
     return matrix
+
+
+def create_batch_iterable(data, labels, batch_size, device):
+    num_batches = (len(data) - 1) // batch_size + 1
+    for i in range(num_batches):
+        start_idx = i * batch_size
+        end_idx = (i + 1) * batch_size
+        yield(torch.tensor(data[start_idx:end_idx], dtype=torch.long, device=device),
+              torch.tensor(labels[start_idx:end_idx], dtype=torch.long, device=device))

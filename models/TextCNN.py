@@ -15,11 +15,11 @@ class TextCNN(nn.Module):
         self.convs = [nn.Conv2d(1, num_filters, (s, embedding_dim)) for s in window_sizes]
         self.pools = [nn.MaxPool1d(conv.kernel_size[1]) for conv in self.convs]
         self.fc1 = nn.Linear(num_filters * len(window_sizes), out_classes)
-        self.softmax = nn.Softmax()
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, input):
-        embedded = self.embedding(input)
-        conv_outputs = [F.relu(conv(embedded)) for conv in self.convs]
-        pool_outputs = [self.pools[i](conv_outputs[i]) for i in range(len(conv_outputs))]
+        embedded = self.embedding(input).unsqueeze(1)
+        conv_outputs = [F.relu(conv(embedded)).squeeze() for conv in self.convs]
+        pool_outputs = [self.pools[i](conv_outputs[i]).squeeze() for i in range(len(conv_outputs))]
         concatenated = torch.cat(pool_outputs, 1)
         return self.softmax(self.fc1(concatenated))
