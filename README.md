@@ -1,5 +1,10 @@
 # Fine-grained Humor Classification with Active Learning
 
+### Usage of annotator
+```
+python annotator.py --categories-def data/four_categories.csv --input-path data/shortjokes.csv --output-path data/shortjokes_labels_4_categories.csv
+```
+
 ### Incongruity
 
 The essence of the laughable is the incongruous, the disconnecting of one idea from another (Paulos, 2008)
