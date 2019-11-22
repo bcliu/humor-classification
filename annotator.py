@@ -43,6 +43,15 @@ def save_annotations_to_file(existing_annotations, new_annotations, save_to):
             csv_writer.writerow(list(annotation))
 
 
+def print_stats_by_category(category_id_to_name, existing_annotations, new_annotations):
+    counts = []
+    for category_id in category_id_to_name:
+        count = sum(existing_annotations[x] == category_id for x in existing_annotations.keys()) +\
+            sum(new_annotations[x] == category_id for x in new_annotations.keys())
+        counts.append(f'{category_id_to_name[category_id]}: {count}')
+    print('\nCurrent statistics: ' + ', '.join(counts))
+
+
 @click.command()
 @click.option('--categories-def', help='Path to categories definition CSV file', required=True)
 @click.option('--input-path', help='Path to input sentences', required=True)
@@ -65,6 +74,10 @@ def annotator(categories_def, input_path, output_path, verbose):
             if verbose:
                 print(f'{sentence} has been annotated with "{existing_annotations[sentence_idx]}"')
             continue
+
+        if len(new_annotations) % 10 == 0:
+            print_stats_by_category(idx2categories, existing_annotations, new_annotations)
+        
         questions = [inquirer.List('sentence_label', message=sentence, choices=choices)]
         answer = inquirer.prompt(questions)
         # Handle keyboard interrupt
