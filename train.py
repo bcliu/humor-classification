@@ -4,6 +4,7 @@ import bcolz
 import click
 import torch
 import torch.nn.functional as F
+from torch.distributions import Categorical
 
 from annotator import load_sentences_or_categories, load_existing_annotations
 from models.TextCNN import TextCNN
@@ -33,12 +34,20 @@ def evaluate(epoch, model, data, labels):
     if epoch % 50 == 0:
         print(f'Epoch {epoch}: Error rate is {error}')
 
-def rank_unlabeled_train(model, data, indices):
+def rank_unlabeled_train(model, data, indices, uncertainty_output):
     """
     Rank unlabeled training data using a model by uncertainty
     :return: Indices of data ranked by uncertainty
     """
-    pass
+    model.eval()
+    limit = 30000
+    pred = model(data[:limit])
+    entropy_list = Categorical(probs=pred).entropy().detach().numpy()
+    entropy_idx_combined = [(entropy_list[idx], indices[idx]) for idx in range(limit)]
+    entropy_idx_combined.sort(key=lambda x: x[0], reverse=True)
+    with open(uncertainty_output, 'w') as output:
+        for i in range(len(entropy_idx_combined)):
+            output.write(f'{entropy_idx_combined[i][1]}\n')
 
 @click.command()
 @click.option('--train-path', help='Path to training file', required=True)
@@ -49,9 +58,10 @@ def rank_unlabeled_train(model, data, indices):
 @click.option('--categories-def-path',
               help='Path to categories definition CSV file, in the format of ID,NAME',
               required=True)
+@click.option('--uncertainty-output-path', required=True)
 @click.option('--batch-size', type=int, default=64)
 def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_word2idx_path,
-         categories_def_path, batch_size):
+         categories_def_path, uncertainty_output_path, batch_size):
     embedding_vectors = bcolz.open(embedding_vectors_path)[:]
     embedding_dim = len(embedding_vectors[0])
     embedding_word2idx = pickle.load(open(embedding_word2idx_path, 'rb'))
@@ -87,6 +97,17 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
         evaluate(i, textCNN,
                  torch.tensor(train_labeled_data, dtype=torch.long, device=device),
                  torch.tensor(train_labels, dtype=torch.long, device=device))
+        if i % 200 == 0:
+            print('Validation error rate:')
+            evaluate(i, textCNN,
+                     torch.tensor(val_labeled_data, dtype=torch.long, device=device),
+                     torch.tensor(val_labels, dtype=torch.long, device=device))
+
+    train_unlabeled_data = create_padded_data(train_unlabeled_data_unpadded, longest_sentence_length)
+    rank_unlabeled_train(textCNN,
+                         torch.tensor(train_unlabeled_data, dtype=torch.long, device=device),
+                         train_unlabeled_idx,
+                         uncertainty_output_path)
 
 if __name__ == '__main__':
     main()
