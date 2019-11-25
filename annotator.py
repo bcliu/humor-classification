@@ -9,6 +9,9 @@ def erase_lines(num_lines):
         sys.stdout.write("\033[F")  # back to previous line
         sys.stdout.write("\033[K")  # clear line
 
+def split_line_to_chunks(line, length=80):
+    return '\n'.join([line[i:(i + length)] for i in range(0, len(line), length)])
+
 def load_uncertainty_ranking(input):
     ranking = []
     with open(input, 'r') as f:
@@ -66,7 +69,7 @@ def print_stats_by_category(category_id_to_name, existing_annotations, new_annot
         count = sum(existing_annotations[x][0] == category_id for x in existing_annotations.keys()) +\
             sum(new_annotations[x][0] == category_id for x in new_annotations.keys())
         counts.append(f'{category_id_to_name[category_id]}: {count}')
-    print('\nCurrent statistics: ' + ', '.join(counts))
+    print('\nCurrent statistics: ' + ', '.join(counts) + '\n')
 
 @click.command()
 @click.option('--categories-def', help='Path to categories definition CSV file', required=True)
@@ -113,7 +116,8 @@ def annotator(categories_def, input_path, output_path, uncertainty_ranking, verb
         if len(new_annotations) % 10 == 0:
             print_stats_by_category(idx2categories, existing_annotations, new_annotations)
 
-        questions = [inquirer.Checkbox('sentence_label', message=sentence, choices=choices)]
+        print(split_line_to_chunks(sentence))
+        questions = [inquirer.Checkbox('sentence_label', message='Annotation', choices=choices)]
 
         answer = None
         while not answer or len(answer['sentence_label']) == 0:
