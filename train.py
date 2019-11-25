@@ -10,13 +10,12 @@ from models.TextCNN import TextCNN
 from utils import create_vocabulary, load_unpadded_train_val_data, create_padded_data, create_weight_matrix, \
     create_batch_iterable
 
-NUM_FILTERS = 8
+NUM_FILTERS = 32
 WINDOW_SIZES = [2, 3, 4, 5]
 LR = 1e-2
 OPTIM_EPS = 1e-9
 NUM_EPOCHS = 1000
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def train_one_epoch(model, data_batches, optimizer):
     model.train()
@@ -27,13 +26,12 @@ def train_one_epoch(model, data_batches, optimizer):
         loss.backward()
         optimizer.step()
 
-
 def evaluate(epoch, model, data, labels):
     model.eval()
     pred = model(data)
     error = torch.sum(torch.argmax(pred, dim=1) != labels) * 1.0 / labels.shape[0]
-    print(f'Epoch {epoch}: Error rate is {error}')
-
+    if epoch % 50 == 0:
+        print(f'Epoch {epoch}: Error rate is {error}')
 
 def rank_unlabeled_train(model, data, indices):
     """
@@ -41,7 +39,6 @@ def rank_unlabeled_train(model, data, indices):
     :return: Indices of data ranked by uncertainty
     """
     pass
-
 
 @click.command()
 @click.option('--train-path', help='Path to training file', required=True)
@@ -65,7 +62,8 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
     vocab = create_vocabulary(train_path)
     vocab_size = len(vocab)
     print(f'Vocabulary size: {vocab_size}')
-    labels = load_existing_annotations(labels_path)
+    # TODO: take advantage of the multiple annotations
+    labels = load_existing_annotations(labels_path, load_first_annotation_only=True)
 
     # Stores indexes of sentences provided in the original dataset
     train_labeled_idx, train_labeled_data_unpadded, train_labels, train_unlabeled_idx, train_unlabeled_data_unpadded,\
@@ -89,7 +87,6 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
         evaluate(i, textCNN,
                  torch.tensor(train_labeled_data, dtype=torch.long, device=device),
                  torch.tensor(train_labels, dtype=torch.long, device=device))
-
 
 if __name__ == '__main__':
     main()

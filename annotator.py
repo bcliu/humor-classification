@@ -9,12 +9,16 @@ def erase_lines(num_lines):
         sys.stdout.write("\033[F")  # back to previous line
         sys.stdout.write("\033[K")  # clear line
 
-def load_existing_annotations(path):
+def load_existing_annotations(path, load_first_annotation_only=False):
+    """
+    :param load_first_annotation_only: Whether to load one annotation only if multiple are available
+    """
     labels = {}
     with open(path) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader:
-            labels[int(row[0])] = [int(l) for l in row[1:]]
+            annotations = [int(l) for l in row[1:]]
+            labels[int(row[0])] = annotations[0] if load_first_annotation_only else annotations
     return labels
 
 def load_sentences_or_categories(path, file_has_header=False):
