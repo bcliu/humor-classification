@@ -2,7 +2,13 @@
 
 ### Usage of annotator
 ```
-python annotator.py --categories-def data/four_categories.csv --input-path data/shortjokes.csv --output-path data/shortjokes_labels_4_categories.csv
+python annotator.py
+    --categories-def data/four_categories.csv
+    --input-path data/shortjokes.csv
+    --output-path data/shortjokes_labels_4_categories.csv
+    --uncertainty-ranking data/uncertainty_sorted.txt
+    --start-pos 10
+    --end-pos 20
 ```
 
 ### Incongruity
