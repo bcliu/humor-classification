@@ -9,6 +9,13 @@ def erase_lines(num_lines):
         sys.stdout.write("\033[F")  # back to previous line
         sys.stdout.write("\033[K")  # clear line
 
+def load_uncertainty_ranking(input):
+    ranking = []
+    with open(input, 'r') as f:
+        for l in f.readlines():
+            ranking.append(int(l))
+    return ranking
+
 def load_existing_annotations(path, load_first_annotation_only=False):
     """
     :param load_first_annotation_only: Whether to load one annotation only if multiple are available
@@ -55,8 +62,9 @@ def save_annotations_to_file(existing_annotations, new_annotations, save_to):
 def print_stats_by_category(category_id_to_name, existing_annotations, new_annotations):
     counts = []
     for category_id in category_id_to_name:
-        count = sum(existing_annotations[x] == category_id for x in existing_annotations.keys()) +\
-            sum(new_annotations[x] == category_id for x in new_annotations.keys())
+        # TODO: only printing stats using first among multiple annotations. Should take into account all of them
+        count = sum(existing_annotations[x][0] == category_id for x in existing_annotations.keys()) +\
+            sum(new_annotations[x][0] == category_id for x in new_annotations.keys())
         counts.append(f'{category_id_to_name[category_id]}: {count}')
     print('\nCurrent statistics: ' + ', '.join(counts))
 
@@ -64,10 +72,11 @@ def print_stats_by_category(category_id_to_name, existing_annotations, new_annot
 @click.option('--categories-def', help='Path to categories definition CSV file', required=True)
 @click.option('--input-path', help='Path to input sentences', required=True)
 @click.option('--output-path', help='Path to output labels file. Can be nonempty.', required=True)
+@click.option('--uncertainty-ranking', help='Path to uncertainty ranking file', required=False)
 @click.option('--verbose', is_flag=True, default=False)
 @click.option('--start-pos', help='Start labeling position', type=int)
 @click.option('--end-pos', help='End labeling position', type=int)
-def annotator(categories_def, input_path, output_path, verbose, start_pos, end_pos):
+def annotator(categories_def, input_path, output_path, uncertainty_ranking, verbose, start_pos, end_pos):
     call('clear')
 
     idx2categories = load_sentences_or_categories(categories_def)
@@ -76,13 +85,25 @@ def annotator(categories_def, input_path, output_path, verbose, start_pos, end_p
     sentences = load_sentences_or_categories(input_path, file_has_header=True)
     choices = [name for name in categories2idx]
 
+    idx_by_uncertainty = None
+    if uncertainty_ranking:
+        # Ranking of sentence indices by uncertainty
+        idx_by_uncertainty = load_uncertainty_ranking(uncertainty_ranking)
+
     new_annotations = {}
 
     sentences_list = list(sentences.items())
     num_sentences = len(sentences_list)
-    for dict_idx in range(start_pos if start_pos is not None else 0,
-                          min(end_pos, num_sentences) if end_pos is not None else num_sentences):
-        sentence_idx, _ = sentences_list[dict_idx]
+    for dict_idx in range(start_pos if start_pos else 0,
+                          min(end_pos, num_sentences) if end_pos else num_sentences):
+        if idx_by_uncertainty:
+            # If indices by uncertainty is provided, load from the most to least uncertain
+            # by treating dict_idx as index into the uncertainty list
+            sentence_idx = idx_by_uncertainty[dict_idx]
+        else:
+            # Otherwise, treat dict_idx as index into the list of all sentences, and label from first to last
+            sentence_idx, _ = sentences_list[dict_idx]
+
         sentence = sentences[sentence_idx]
         if sentence_idx in existing_annotations:
             if verbose:
@@ -95,11 +116,11 @@ def annotator(categories_def, input_path, output_path, verbose, start_pos, end_p
         questions = [inquirer.Checkbox('sentence_label', message=sentence, choices=choices)]
 
         answer = None
-        while answer is None or len(answer['sentence_label']) == 0:
+        while not answer or len(answer['sentence_label']) == 0:
             answer = inquirer.prompt(questions)
 
             # Handle keyboard interrupt
-            if answer is None:
+            if not answer:
                 save_annotations_to_file(existing_annotations, new_annotations, output_path)
                 sys.exit(0)
 

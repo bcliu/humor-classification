@@ -12,7 +12,7 @@ from utils import create_vocabulary, load_unpadded_train_val_data, create_padded
     create_batch_iterable
 
 NUM_FILTERS = 32
-WINDOW_SIZES = [2, 3, 4, 5]
+WINDOW_SIZES = [1, 2, 3, 4, 5]
 LR = 1e-2
 OPTIM_EPS = 1e-9
 NUM_EPOCHS = 1000
