@@ -14,7 +14,7 @@ def load_existing_annotations(path):
     with open(path) as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
         for row in csv_reader:
-            labels[int(row[0])] = int(row[1])
+            labels[int(row[0])] = [int(l) for l in row[1:]]
     return labels
 
 def load_sentences_or_categories(path, file_has_header=False):
@@ -43,7 +43,8 @@ def save_annotations_to_file(existing_annotations, new_annotations, save_to):
         file.seek(0)
         for annotation in all_annotations:
             csv_writer = csv.writer(file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-            csv_writer.writerow(list(annotation))
+            # Flatten id and list of labels to one list, before writing to CSV
+            csv_writer.writerow([annotation[0]] + annotation[1])
 
     print('Saved')
 
@@ -87,14 +88,21 @@ def annotator(categories_def, input_path, output_path, verbose, start_pos, end_p
         if len(new_annotations) % 10 == 0:
             print_stats_by_category(idx2categories, existing_annotations, new_annotations)
 
-        questions = [inquirer.List('sentence_label', message=sentence, choices=choices)]
-        answer = inquirer.prompt(questions)
-        # Handle keyboard interrupt
-        if answer is None:
-            save_annotations_to_file(existing_annotations, new_annotations, output_path)
-            sys.exit(0)
+        questions = [inquirer.Checkbox('sentence_label', message=sentence, choices=choices)]
 
-        category_idx = categories2idx[answer['sentence_label']]
+        answer = None
+        while answer is None or len(answer['sentence_label']) == 0:
+            answer = inquirer.prompt(questions)
+
+            # Handle keyboard interrupt
+            if answer is None:
+                save_annotations_to_file(existing_annotations, new_annotations, output_path)
+                sys.exit(0)
+
+            if len(answer['sentence_label']) == 0:
+                print('Error: You must select at least one label\n')
+
+        category_idx = [categories2idx[label] for label in answer['sentence_label']]
         new_annotations[sentence_idx] = category_idx
 
         erase_lines(len(choices) + 1)
