@@ -134,7 +134,7 @@ def annotator(categories_def, input_path, output_path, uncertainty_ranking, verb
         category_idx = [categories2idx[label] for label in answer['sentence_label']]
         new_annotations[sentence_idx] = category_idx
 
-        erase_lines(len(choices) + 1)
+        erase_lines(len(choices) + 2)
 
     save_annotations_to_file(existing_annotations, new_annotations, output_path)
 
