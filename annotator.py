@@ -1,8 +1,11 @@
-import inquirer
-from subprocess import call
-import sys
-import click
 import csv
+import sys
+from subprocess import call
+
+import click
+import inquirer
+from colorama import Fore
+
 
 def erase_lines(num_lines):
     for i in range(num_lines):
@@ -69,7 +72,7 @@ def print_stats_by_category(category_id_to_name, existing_annotations, new_annot
         count = sum(existing_annotations[x][0] == category_id for x in existing_annotations.keys()) +\
             sum(new_annotations[x][0] == category_id for x in new_annotations.keys())
         counts.append(f'{category_id_to_name[category_id]}: {count}')
-    print('\nCurrent statistics: ' + ', '.join(counts) + '\n')
+    print(f'\n{Fore.BLUE}Current statistics:{Fore.RESET}\n' + '\n'.join(counts) + '\n')
 
 @click.command()
 @click.option('--categories-def', help='Path to categories definition CSV file', required=True)
@@ -116,8 +119,8 @@ def annotator(categories_def, input_path, output_path, uncertainty_ranking, verb
         if len(new_annotations) % 10 == 0:
             print_stats_by_category(idx2categories, existing_annotations, new_annotations)
 
-        print(split_line_to_chunks(sentence))
-        questions = [inquirer.Checkbox('sentence_label', message='Annotation', choices=choices)]
+        print(split_line_to_chunks(f'[{Fore.GREEN}#{sentence_idx}{Fore.RESET}] {sentence}'))
+        questions = [inquirer.Checkbox('sentence_label', message=f'{Fore.GREEN}Annotation{Fore.RESET}', choices=choices)]
 
         answer = None
         while not answer or len(answer['sentence_label']) == 0:
@@ -134,7 +137,7 @@ def annotator(categories_def, input_path, output_path, uncertainty_ranking, verb
         category_idx = [categories2idx[label] for label in answer['sentence_label']]
         new_annotations[sentence_idx] = category_idx
 
-        erase_lines(len(choices) + 1)
+        erase_lines(len(choices) + 2)
 
     save_annotations_to_file(existing_annotations, new_annotations, output_path)
 
