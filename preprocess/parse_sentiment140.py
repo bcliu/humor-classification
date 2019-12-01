@@ -35,7 +35,7 @@ random.shuffle(all_train)
 
 num_val = int(len(all_train) * VAL_PERCENTAGE)
 train_split = all_train[:-num_val]
-val_split = all_train[num_val:]
+val_split = all_train[-num_val:]
 
 with open(TRAIN_OUT_PATH, 'w') as train_out, \
     open(TRAIN_LABELS_OUT_PATH, 'w') as train_labels_out:

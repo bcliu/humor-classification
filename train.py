@@ -59,7 +59,7 @@ def rank_unlabeled_train(model, data, indices, uncertainty_output):
 @click.option('--categories-def-path',
               help='Path to categories definition CSV file, in the format of ID,NAME',
               required=True)
-@click.option('--uncertainty-output-path', required=True)
+@click.option('--uncertainty-output-path', required=False)
 @click.option('--batch-size', type=int, default=64)
 def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_word2idx_path,
          categories_def_path, uncertainty_output_path, batch_size):
@@ -76,39 +76,43 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
     # TODO: take advantage of the multiple annotations
     labels = load_existing_annotations(labels_path, load_first_annotation_only=True)
 
+    humor_types = load_sentences_or_categories(categories_def_path)
+    # Map label IDs to indices so that when computing cross entropy we don't operate on raw label IDs
+    label_id_to_idx = {label_id: idx for idx, label_id in enumerate(humor_types)}
+    word_weight_matrix = create_weight_matrix(vocab, embeddings, device)
+
     # Stores indexes of sentences provided in the original dataset
     train_labeled_idx, train_labeled_data_unpadded, train_labels, train_unlabeled_idx, train_unlabeled_data_unpadded,\
-        longest_sentence_length = load_unpadded_train_val_data(train_path, vocab, labels)
+        longest_sentence_length = load_unpadded_train_val_data(train_path, vocab, labels, label_id_to_idx)
     val_labeled_idx, val_labeled_data_unpadded, val_labels, val_unlabeled_idx, val_unlabeled_data_unpadded,\
-        _ = load_unpadded_train_val_data(val_path, vocab, labels)
+        _ = load_unpadded_train_val_data(val_path, vocab, labels, label_id_to_idx)
 
     # Create padded train and val dataset
     # TODO: Do not use longest length to pad input. Find mean and std
     train_labeled_data = create_padded_data(train_labeled_data_unpadded, longest_sentence_length)
     val_labeled_data = create_padded_data(val_labeled_data_unpadded, longest_sentence_length)
 
-    humor_types = load_sentences_or_categories(categories_def_path)
-    word_weight_matrix = create_weight_matrix(vocab, embeddings, device)
-
     textCNN = TextCNN(word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types))
     optimizer = torch.optim.Adam(textCNN.parameters(), lr=LR, eps=OPTIM_EPS)
 
     for i in range(NUM_EPOCHS):
+        print(i)
         train_one_epoch(textCNN, create_batch_iterable(train_labeled_data, train_labels, batch_size, device), optimizer)
         evaluate(i, textCNN,
                  torch.tensor(train_labeled_data, dtype=torch.long, device=device),
                  torch.tensor(train_labels, dtype=torch.long, device=device))
-        if i % 200 == 0:
+        if i % 5 == 0:
             print('Validation error rate:')
             evaluate(i, textCNN,
                      torch.tensor(val_labeled_data, dtype=torch.long, device=device),
                      torch.tensor(val_labels, dtype=torch.long, device=device))
 
     train_unlabeled_data = create_padded_data(train_unlabeled_data_unpadded, longest_sentence_length)
-    rank_unlabeled_train(textCNN,
-                         torch.tensor(train_unlabeled_data, dtype=torch.long, device=device),
-                         train_unlabeled_idx,
-                         uncertainty_output_path)
+    if uncertainty_output_path:
+        rank_unlabeled_train(textCNN,
+                             torch.tensor(train_unlabeled_data, dtype=torch.long, device=device),
+                             train_unlabeled_idx,
+                             uncertainty_output_path)
 
 if __name__ == '__main__':
     main()
