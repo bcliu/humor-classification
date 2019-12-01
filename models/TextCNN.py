@@ -4,17 +4,17 @@ import torch.nn.functional as F
 
 
 class TextCNN(nn.Module):
-    def __init__(self, weights_matrix, num_filters, window_sizes, out_classes, dropout_rate=0.1):
+    def __init__(self, device, weights_matrix, num_filters, window_sizes, out_classes, dropout_rate=0.1):
         super().__init__()
         num_embeddings, embedding_dim = weights_matrix.shape
-        self.embedding = nn.Embedding(num_embeddings, embedding_dim)
+        self.embedding = nn.Embedding(num_embeddings, embedding_dim).to(device)
         self.embedding.load_state_dict({'weight': weights_matrix})
         self.embedding.weight.requires_grad = False
 
         # List of convs with different window sizes
-        self.convs = [nn.Conv2d(1, num_filters, (s, embedding_dim)) for s in window_sizes]
+        self.convs = [nn.Conv2d(1, num_filters, (s, embedding_dim)).to(device) for s in window_sizes]
         self.dropout = nn.Dropout(dropout_rate)
-        self.fc1 = nn.Linear(num_filters * len(window_sizes), out_classes)
+        self.fc1 = nn.Linear(num_filters * len(window_sizes), out_classes).to(device)
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, input, train=True):

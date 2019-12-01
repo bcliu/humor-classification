@@ -18,14 +18,21 @@ OPTIM_EPS = 1e-9
 NUM_EPOCHS = 1000
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def train_one_epoch(model, data_batches, optimizer):
+def train_one_epoch(model, data_batches, optimizer, val_labeled_data, val_labels):
     model.train()
     for batch_idx, (data, labels) in enumerate(data_batches):
         optimizer.zero_grad()
         pred = model(data)
         loss = F.cross_entropy(pred, labels)
+        print(f'Batch {batch_idx}, loss {loss.item()}')
         loss.backward()
         optimizer.step()
+
+        if batch_idx % 500 == 0:
+            print('Validation error rate:')
+            evaluate(batch_idx, model,
+                     torch.tensor(val_labeled_data, dtype=torch.long, device=device),
+                     torch.tensor(val_labels, dtype=torch.long, device=device))
 
 def evaluate(epoch, model, data, labels):
     model.eval()
@@ -92,20 +99,20 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
     train_labeled_data = create_padded_data(train_labeled_data_unpadded, longest_sentence_length)
     val_labeled_data = create_padded_data(val_labeled_data_unpadded, longest_sentence_length)
 
-    textCNN = TextCNN(word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types))
+    textCNN = TextCNN(device, word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types))
     optimizer = torch.optim.Adam(textCNN.parameters(), lr=LR, eps=OPTIM_EPS)
 
     for i in range(NUM_EPOCHS):
-        print(i)
-        train_one_epoch(textCNN, create_batch_iterable(train_labeled_data, train_labels, batch_size, device), optimizer)
+        print(f'Epoch {i}')
+        train_one_epoch(textCNN, create_batch_iterable(train_labeled_data, train_labels, batch_size, device), optimizer,
+                        val_labeled_data, val_labels)
         evaluate(i, textCNN,
                  torch.tensor(train_labeled_data, dtype=torch.long, device=device),
                  torch.tensor(train_labels, dtype=torch.long, device=device))
-        if i % 5 == 0:
-            print('Validation error rate:')
-            evaluate(i, textCNN,
-                     torch.tensor(val_labeled_data, dtype=torch.long, device=device),
-                     torch.tensor(val_labels, dtype=torch.long, device=device))
+        print('Validation error rate:')
+        evaluate(i, textCNN,
+                 torch.tensor(val_labeled_data, dtype=torch.long, device=device),
+                 torch.tensor(val_labels, dtype=torch.long, device=device))
 
     train_unlabeled_data = create_padded_data(train_unlabeled_data_unpadded, longest_sentence_length)
     if uncertainty_output_path:
