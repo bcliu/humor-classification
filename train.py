@@ -12,7 +12,7 @@ from utils import create_vocabulary, load_unpadded_train_val_data, create_padded
     create_batch_iterable
 
 NUM_FILTERS = 32
-WINDOW_SIZES = [1, 2, 3, 4, 5]
+WINDOW_SIZES = [1, 2, 3, 4, 5, 7, 9]
 LR = 1e-2
 OPTIM_EPS = 1e-9
 NUM_EPOCHS = 1000
@@ -29,7 +29,7 @@ def train_one_epoch(model, data_batches, optimizer):
 
 def evaluate(epoch, model, data, labels):
     model.eval()
-    pred = model(data)
+    pred = model(data, train=False)
     error = torch.sum(torch.argmax(pred, dim=1) != labels) * 1.0 / labels.shape[0]
     if epoch % 50 == 0:
         print(f'Epoch {epoch}: Error rate is {error}')
@@ -41,7 +41,8 @@ def rank_unlabeled_train(model, data, indices, uncertainty_output):
     """
     model.eval()
     limit = 30000
-    pred = model(data[:limit])
+    # TODO: batch here as well, memory constraint
+    pred = model(data[:limit], train=False)
     entropy_list = Categorical(probs=pred).entropy().detach().numpy()
     entropy_idx_combined = [(entropy_list[idx], indices[idx]) for idx in range(limit)]
     entropy_idx_combined.sort(key=lambda x: x[0], reverse=True)
