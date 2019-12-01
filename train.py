@@ -15,7 +15,7 @@ from utils import create_vocabulary, load_unpadded_train_val_data, create_padded
 
 NUM_FILTERS = 64
 WINDOW_SIZES = [1, 2, 3, 4, 5, 7, 9]
-LR = 1e-2
+LR = 1e-3
 OPTIM_EPS = 1e-9
 NUM_EPOCHS = 20
 VAL_SAMPLE_SIZE = 256
