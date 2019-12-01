@@ -5,6 +5,7 @@ import click
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
+from sklearn.metrics import f1_score, precision_score, recall_score
 
 from annotator import load_sentences_or_categories, load_existing_annotations
 from models.TextCNN import TextCNN
@@ -15,7 +16,8 @@ NUM_FILTERS = 32
 WINDOW_SIZES = [1, 2, 3, 4, 5, 7, 9]
 LR = 1e-2
 OPTIM_EPS = 1e-9
-NUM_EPOCHS = 1000
+NUM_EPOCHS = 20
+VAL_SAMPLE_SIZE = 256
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def train_one_epoch(model, data_batches, optimizer, val_labeled_data, val_labels):
@@ -24,22 +26,36 @@ def train_one_epoch(model, data_batches, optimizer, val_labeled_data, val_labels
         optimizer.zero_grad()
         pred = model(data)
         loss = F.cross_entropy(pred, labels)
-        print(f'Batch {batch_idx}, loss {loss.item()}')
+        if batch_idx % 20 == 0:
+            f1, precision, recall = compute_f1_score(labels, pred)
+            print(f'Batch {batch_idx}, loss {loss.item()}, f1 score: {f1}, precision: {precision}, recall: {recall}')
         loss.backward()
         optimizer.step()
+
+        # Free GPU memory associated with these two otherwise evaluation will result in OOM
+        del pred
+        del loss
 
         if batch_idx % 500 == 0:
             print('Validation error rate:')
             evaluate(batch_idx, model,
-                     torch.tensor(val_labeled_data, dtype=torch.long, device=device),
-                     torch.tensor(val_labels, dtype=torch.long, device=device))
+                     torch.tensor(val_labeled_data[:VAL_SAMPLE_SIZE], dtype=torch.long, device=device),
+                     torch.tensor(val_labels[:VAL_SAMPLE_SIZE], dtype=torch.long, device=device))
+
+def compute_f1_score(labels, pred):
+    labels_numpy = labels.cpu().detach().numpy()
+    pred_numpy = torch.argmax(pred, dim=1).cpu().detach().numpy()
+    f1 = f1_score(labels_numpy, pred_numpy)
+    precision = precision_score(labels_numpy, pred_numpy)
+    recall = recall_score(labels_numpy, pred_numpy)
+    return f1, precision, recall
 
 def evaluate(epoch, model, data, labels):
     model.eval()
     pred = model(data, train=False)
     error = torch.sum(torch.argmax(pred, dim=1) != labels) * 1.0 / labels.shape[0]
-    if epoch % 50 == 0:
-        print(f'Epoch {epoch}: Error rate is {error}')
+    f1, precision, recall = compute_f1_score(labels, pred)
+    print(f'Error: {error}, f1: {f1}, precision: {precision}, recall: {recall}')
 
 def rank_unlabeled_train(model, data, indices, uncertainty_output):
     """
@@ -79,7 +95,7 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
     # Build vocabulary using training set. Maps words to indices
     vocab = create_vocabulary(train_path)
     vocab_size = len(vocab)
-    print(f'Vocabulary size: {vocab_size}')
+    print(f'Vocabulary size: {vocab_size}\nBatch size: {batch_size}')
     # TODO: take advantage of the multiple annotations
     labels = load_existing_annotations(labels_path, load_first_annotation_only=True)
 
@@ -99,7 +115,9 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
     train_labeled_data = create_padded_data(train_labeled_data_unpadded, longest_sentence_length)
     val_labeled_data = create_padded_data(val_labeled_data_unpadded, longest_sentence_length)
 
-    textCNN = TextCNN(device, word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types))
+    print(f'Num of labeled training data: {train_labeled_data.shape[0]}')
+
+    textCNN = TextCNN(word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types)).to(device)
     optimizer = torch.optim.Adam(textCNN.parameters(), lr=LR, eps=OPTIM_EPS)
 
     for i in range(NUM_EPOCHS):
@@ -109,13 +127,9 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
         evaluate(i, textCNN,
                  torch.tensor(train_labeled_data, dtype=torch.long, device=device),
                  torch.tensor(train_labels, dtype=torch.long, device=device))
-        print('Validation error rate:')
-        evaluate(i, textCNN,
-                 torch.tensor(val_labeled_data, dtype=torch.long, device=device),
-                 torch.tensor(val_labels, dtype=torch.long, device=device))
 
-    train_unlabeled_data = create_padded_data(train_unlabeled_data_unpadded, longest_sentence_length)
     if uncertainty_output_path:
+        train_unlabeled_data = create_padded_data(train_unlabeled_data_unpadded, longest_sentence_length)
         rank_unlabeled_train(textCNN,
                              torch.tensor(train_unlabeled_data, dtype=torch.long, device=device),
                              train_unlabeled_idx,
