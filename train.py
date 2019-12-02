@@ -17,7 +17,7 @@ NUM_FILTERS = 64
 WINDOW_SIZES = [1, 2, 3, 4, 5, 7, 9]
 LR = 1e-3
 OPTIM_EPS = 1e-9
-NUM_EPOCHS = 500
+NUM_EPOCHS = 100
 VAL_SAMPLE_SIZE = 256
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -86,9 +86,11 @@ def rank_unlabeled_train(model, data, indices, uncertainty_output):
 @click.option('--uncertainty-output-path', required=False)
 @click.option('--batch-size', type=int, default=64)
 @click.option('--model-snapshot-prefix', type=str, required=False)
+@click.option('--model-snapshot-interval', type=int, required=False)
 @click.option('--pretrained-model-path', type=str, required=False)
 def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_word2idx_path,
-         categories_def_path, uncertainty_output_path, batch_size, model_snapshot_prefix, pretrained_model_path):
+         categories_def_path, uncertainty_output_path, batch_size, model_snapshot_prefix, pretrained_model_path,
+         model_snapshot_interval):
     embedding_vectors = bcolz.open(embedding_vectors_path)[:]
     embedding_dim = len(embedding_vectors[0])
     embedding_word2idx = pickle.load(open(embedding_word2idx_path, 'rb'))
@@ -101,6 +103,11 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
     print(f'Vocabulary size: {vocab_size}\nBatch size: {batch_size}')
     # TODO: take advantage of the multiple annotations
     labels = load_existing_annotations(labels_path, load_first_annotation_only=True)
+
+    if model_snapshot_interval:
+        print(f'Taking model snapshot every {model_snapshot_interval} epochs')
+    else:
+        print(f'Taking model snapshot ONLY at the end of training')
 
     humor_types = load_sentences_or_categories(categories_def_path)
     # Map label IDs to indices so that when computing cross entropy we don't operate on raw label IDs
@@ -132,7 +139,11 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
         train_one_epoch(textCNN, create_batch_iterable(train_labeled_data, train_labels, batch_size, device),
                         optimizer, val_labeled_data, val_labels, num_iterations)
         if model_snapshot_prefix:
-            torch.save(textCNN.state_dict(), f'{model_snapshot_prefix}_epoch{i}.mdl')
+            if (not model_snapshot_interval and i + 1 == NUM_EPOCHS) or \
+                    (model_snapshot_interval and (i + 1) % model_snapshot_interval == 0):
+                print('\nSaving model snapshot...')
+                torch.save(textCNN.state_dict(), f'{model_snapshot_prefix}_epoch{i}.mdl')
+                print('Saved\n')
 
     if uncertainty_output_path:
         train_unlabeled_data = create_padded_data(train_unlabeled_data_unpadded, longest_sentence_length)
