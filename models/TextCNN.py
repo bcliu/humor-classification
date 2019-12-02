@@ -25,3 +25,10 @@ class TextCNN(nn.Module):
         if train:
             concatenated = self.dropout(concatenated)
         return self.softmax(self.fc1(concatenated))
+
+    def initialize_from_pretrained(self, pretrained_path):
+        loaded_weights = torch.load(pretrained_path)
+        own_state = self.state_dict()
+        # Remove the 'module.' prefix since some models are saved using DataParallel object
+        own_state.update({k.replace('module.', ''): v for k, v in loaded_weights.items() if 'conv' in k})
+        self.load_state_dict(own_state)

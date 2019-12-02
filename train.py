@@ -17,7 +17,7 @@ NUM_FILTERS = 64
 WINDOW_SIZES = [1, 2, 3, 4, 5, 7, 9]
 LR = 1e-3
 OPTIM_EPS = 1e-9
-NUM_EPOCHS = 20
+NUM_EPOCHS = 500
 VAL_SAMPLE_SIZE = 256
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -46,9 +46,9 @@ def train_one_epoch(model, data_batches, optimizer, val_labeled_data, val_labels
 def compute_f1_score(labels, pred):
     labels_numpy = labels.cpu().detach().numpy()
     pred_numpy = torch.argmax(pred, dim=1).cpu().detach().numpy()
-    f1 = f1_score(labels_numpy, pred_numpy)
-    precision = precision_score(labels_numpy, pred_numpy)
-    recall = recall_score(labels_numpy, pred_numpy)
+    f1 = f1_score(labels_numpy, pred_numpy, average='macro')
+    precision = precision_score(labels_numpy, pred_numpy, average='macro')
+    recall = recall_score(labels_numpy, pred_numpy, average='macro')
     return f1, precision, recall
 
 def evaluate(epoch, model, data, labels):
@@ -67,7 +67,7 @@ def rank_unlabeled_train(model, data, indices, uncertainty_output):
     limit = 30000
     # TODO: batch here as well, memory constraint
     pred = model(data[:limit], train=False)
-    entropy_list = Categorical(probs=pred).entropy().detach().numpy()
+    entropy_list = Categorical(probs=pred).entropy().cpu().detach().numpy()
     entropy_idx_combined = [(entropy_list[idx], indices[idx]) for idx in range(limit)]
     entropy_idx_combined.sort(key=lambda x: x[0], reverse=True)
     with open(uncertainty_output, 'w') as output:
@@ -85,9 +85,10 @@ def rank_unlabeled_train(model, data, indices, uncertainty_output):
               required=True)
 @click.option('--uncertainty-output-path', required=False)
 @click.option('--batch-size', type=int, default=64)
-@click.option('--model-snapshot-prefix', type=str, required=True)
+@click.option('--model-snapshot-prefix', type=str, required=False)
+@click.option('--pretrained-model-path', type=str, required=False)
 def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_word2idx_path,
-         categories_def_path, uncertainty_output_path, batch_size, model_snapshot_prefix):
+         categories_def_path, uncertainty_output_path, batch_size, model_snapshot_prefix, pretrained_model_path):
     embedding_vectors = bcolz.open(embedding_vectors_path)[:]
     embedding_dim = len(embedding_vectors[0])
     embedding_word2idx = pickle.load(open(embedding_word2idx_path, 'rb'))
@@ -117,18 +118,21 @@ def main(train_path, val_path, labels_path, embedding_vectors_path, embedding_wo
     train_labeled_data = create_padded_data(train_labeled_data_unpadded, longest_sentence_length)
     val_labeled_data = create_padded_data(val_labeled_data_unpadded, longest_sentence_length)
 
-    print(f'Num of labeled training data: {train_labeled_data.shape[0]}')
+    print(f'Num of labeled training data: {train_labeled_data.shape[0]}, labeled val: {val_labeled_data.shape[0]}')
 
     num_iterations = train_labeled_data.shape[0] // batch_size
 
     textCNN = DataParallel(TextCNN(word_weight_matrix, NUM_FILTERS, WINDOW_SIZES, len(humor_types))).to(device)
+    if pretrained_model_path:
+        textCNN.module.initialize_from_pretrained(pretrained_model_path)
     optimizer = torch.optim.Adam(textCNN.parameters(), lr=LR, eps=OPTIM_EPS)
 
     for i in range(NUM_EPOCHS):
         print(f'Epoch {i}')
         train_one_epoch(textCNN, create_batch_iterable(train_labeled_data, train_labels, batch_size, device),
                         optimizer, val_labeled_data, val_labels, num_iterations)
-        torch.save(textCNN.state_dict(), f'{model_snapshot_prefix}_epoch{i}.mdl')
+        if model_snapshot_prefix:
+            torch.save(textCNN.state_dict(), f'{model_snapshot_prefix}_epoch{i}.mdl')
 
     if uncertainty_output_path:
         train_unlabeled_data = create_padded_data(train_unlabeled_data_unpadded, longest_sentence_length)
