@@ -2,5 +2,9 @@
 .idea/
 .ipynb_checkpoints/
 data/glove*
+data/sentiment140/train*
+data/sentiment140/val*
+data/sentiment140/testdata*
 humor-refs/
 *.pyc
+*.mdl
