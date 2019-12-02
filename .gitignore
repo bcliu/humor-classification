@@ -7,3 +7,4 @@ data/sentiment140/val*
 data/sentiment140/testdata*
 humor-refs/
 *.pyc
+*.mdl

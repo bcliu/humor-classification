@@ -37,7 +37,8 @@ def sentence2vec(vocabulary: Dict[str, int], token_list: List[str]) -> List[int]
     return vec
 
 
-def load_unpadded_train_val_data(path: str, vocabulary: Dict[str, int], all_labels: Dict[int, int]):
+def load_unpadded_train_val_data(path: str, vocabulary: Dict[str, int], all_labels: Dict[int, int],
+                                 label_id_to_idx):
     """
     Load train or validation data into unpadded lists divided into those with labels and those without labels
     :param path: Path to input file
@@ -63,7 +64,7 @@ def load_unpadded_train_val_data(path: str, vocabulary: Dict[str, int], all_labe
             if idx in all_labels:
                 labeled_indices.append(idx)
                 labeled_unpadded_data.append(sentence_vec)
-                data_labels.append(all_labels[idx])
+                data_labels.append(label_id_to_idx[all_labels[idx]] if label_id_to_idx else all_labels[idx])
             else:
                 unlabeled_indices.append(idx)
                 unlabeled_unpadded_data.append(sentence_vec)
